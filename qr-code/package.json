@@ -1,0 +1,13 @@
+{
+  "name": "qr-code",
+  "scripts": {
+    "dev": "bun run --hot src/index.tsx"
+  },
+  "dependencies": {
+    "hono": "^4.11.4",
+    "qr-code-styling": "^1.9.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
