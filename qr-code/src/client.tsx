@@ -4,7 +4,7 @@ import QRCode, { type QRCodeHandle } from './components/QRCode'
 import type { DotType, CornerSquareType, CornerDotType, TypeNumber, ErrorCorrectionLevel, Extension } from 'qr-code-styling'
 
 const App = () => {
-    const [userId, setUserId] = useState("12345");
+    const [userId, setUserId] = useState("https://www.youtube.com/watch?v=xvFZjo5PgG0");
     const [dotsType, setDotsType] = useState<DotType>('dots');
     const [dotsColor, setDotsColor] = useState('#ffffff');
     const [backgroundColor, setBackgroundColor] = useState('#000000');
@@ -15,7 +15,7 @@ const App = () => {
 
     // New Options
     const [logoFile, setLogoFile] = useState<string | undefined>(undefined);
-    const [typeNumber, setTypeNumber] = useState<number>(0); // 0 = Auto
+    const [typeNumber, setTypeNumber] = useState<number>(4); // 0 = Auto
     const [errorCorrectionLevel, setErrorCorrectionLevel] = useState<ErrorCorrectionLevel>('Q');
     const [downloadSize, setDownloadSize] = useState<number>(2000);
     const [downloadExtension, setDownloadExtension] = useState<Extension>('png');
@@ -94,7 +94,7 @@ const App = () => {
                         </select>
                     </div>
                     <div>
-                         <label className="block text-sm mb-1 text-gray-600">Version (0 = Auto)</label>
+                         <label className="block text-sm mb-1 text-gray-600">Version </label>
                          <input
                             type="number"
                             min="0"
@@ -256,7 +256,7 @@ const App = () => {
                             userId={userId}
                             userName="Test User"
                             logoUrl={logoFile}
-                            size={368} // 400 - 32 padding
+                            size={468} // 500 - 32 padding
                             dotsType={dotsType}
                             dotsColor={dotsColor}
                             backgroundColor={backgroundColor}
