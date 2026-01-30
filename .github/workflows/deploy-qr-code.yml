@@ -1,0 +1,50 @@
+name: Deploy QR Code to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'qr-code/**'
+      - '.github/workflows/deploy-qr-code.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'qr-code/**'
+      - '.github/workflows/deploy-qr-code.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    
+    defaults:
+      run:
+        working-directory: qr-code
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build for Cloudflare Pages
+        run: bun run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=qr-code
+          workingDirectory: qr-code
