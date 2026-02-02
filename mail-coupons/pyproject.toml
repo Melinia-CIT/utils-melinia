@@ -1,0 +1,21 @@
+[project]
+name = "mail-coupons"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "click>=8.3.1",
+    "pytest>=9.0.2",
+    "requests>=2.32.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mail_coupons"]
