@@ -8,7 +8,7 @@ def read_recipients(csv_path: str) -> List[Dict[str, Any]]:
     """Read recipients from CSV file.
 
     Expected CSV format:
-    roll_no,clg mail,name,is_paid
+    roll_no,email,name,is_paid
 
     Args:
         csv_path: Path to the CSV file
@@ -35,7 +35,7 @@ def read_recipients(csv_path: str) -> List[Dict[str, Any]]:
 
             recipient = {
                 "roll_no": row.get("roll_no", "").strip(),
-                "email": row.get("clg mail", "").strip(),
+                "email": row.get("email", "").strip(),
                 "name": row.get("name", "").strip(),
                 "is_paid": is_paid,
             }

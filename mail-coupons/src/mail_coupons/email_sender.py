@@ -4,9 +4,37 @@ import random
 import string
 import smtplib
 import requests
+import asyncio
+import time
+import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List, Callable, Optional
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from enum import Enum
+
+
+class EmailStatus(Enum):
+    """Email processing status."""
+
+    PENDING = "pending"
+    COUPON_CREATED = "coupon_created"
+    SENDING = "sending"
+    SENT = "sent"
+    FAILED = "failed"
+
+
+@dataclass
+class EmailResult:
+    """Result of email processing."""
+
+    recipient: Dict[str, Any]
+    coupon_code: str
+    status: EmailStatus
+    success: bool
+    error_message: str = ""
+    processing_time_ms: float = 0.0
 
 
 def generate_coupon_code() -> str:
@@ -15,11 +43,32 @@ def generate_coupon_code() -> str:
     Returns:
         A unique coupon code string
     """
-    # Generate 3 random letters and 3 random digits, then shuffle
     letters = "".join(random.choices(string.ascii_uppercase, k=3))
     digits = "".join(random.choices(string.digits, k=3))
     random_part = "".join(random.sample(letters + digits, 6))
     return f"MLNC{random_part}"
+
+
+class AsyncRateLimiter:
+    """Rate limiter for controlling email send rate."""
+
+    def __init__(self, max_requests_per_second: int = 12):
+        self.max_requests_per_second = max_requests_per_second
+        self.min_interval = 1.0 / max_requests_per_second
+        self.last_request_time = 0
+        self._lock = asyncio.Lock()
+
+    async def acquire(self):
+        """Acquire permission to make a request, waiting if necessary."""
+        async with self._lock:
+            current_time = time.time()
+            time_since_last = current_time - self.last_request_time
+
+            if time_since_last < self.min_interval:
+                wait_time = self.min_interval - time_since_last
+                await asyncio.sleep(wait_time)
+
+            self.last_request_time = time.time()
 
 
 class EmailSender:
@@ -35,6 +84,8 @@ class EmailSender:
         smtp_password: str,
         from_email: str,
         register_url: str = "https://melinia.in/register",
+        rate_limit: int = 12,
+        logger: Optional[logging.Logger] = None,
     ):
         """Initialize EmailSender with configuration.
 
@@ -47,6 +98,8 @@ class EmailSender:
             smtp_password: SMTP authentication password
             from_email: From email address for sent emails
             register_url: Registration URL to include in emails
+            rate_limit: Maximum emails per second (default: 12)
+            logger: Optional logger instance
         """
         self.api_endpoint = api_endpoint
         self.bearer_token = bearer_token
@@ -56,28 +109,25 @@ class EmailSender:
         self.smtp_password = smtp_password
         self.from_email = from_email
         self.register_url = register_url
+        self.rate_limiter = AsyncRateLimiter(rate_limit)
+        self.logger = logger or logging.getLogger(__name__)
+        self._executor = ThreadPoolExecutor(max_workers=rate_limit)
 
     def _capitalize_name(self, name: str) -> str:
-        """Capitalize each word in a name.
-
-        Args:
-            name: The name to capitalize
-
-        Returns:
-            Capitalized name
-        """
+        """Capitalize each word in a name."""
         return " ".join(word.capitalize() for word in name.split())
 
-    def create_coupon(self, coupon_code: str) -> bool:
-        """Create a coupon via the API.
+    def create_coupon(self, coupon_code: str) -> Tuple[bool, str]:
+        """Create a coupon via the API (blocking operation).
 
         Args:
             coupon_code: The coupon code to create
 
         Returns:
-            True if successful, False otherwise
+            Tuple of (success: bool, error_message: str)
         """
         try:
+            self.logger.debug(f"Creating coupon: {coupon_code}")
             response = requests.post(
                 self.api_endpoint,
                 headers={
@@ -88,13 +138,32 @@ class EmailSender:
                 timeout=10,
             )
 
-            return response.status_code in (200, 201)
-        except Exception as e:
-            print(f"API error: {e}")
-            return False
+            if response.status_code not in (200, 201):
+                error_msg = (
+                    f"API error: Status {response.status_code} - {response.text}"
+                )
+                self.logger.warning(error_msg)
+                return False, error_msg
 
-    def send_email(self, to_email: str, name: str, coupon_code: str) -> bool:
-        """Send coupon email to recipient.
+            self.logger.debug(f"Coupon created successfully: {coupon_code}")
+            return True, ""
+        except requests.exceptions.Timeout:
+            error_msg = f"API timeout while creating coupon {coupon_code}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        except requests.exceptions.ConnectionError as e:
+            error_msg = f"API connection error: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"API error creating coupon {coupon_code}: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            return False, error_msg
+
+    def send_email(
+        self, to_email: str, name: str, coupon_code: str
+    ) -> Tuple[bool, str]:
+        """Send coupon email to recipient (blocking operation).
 
         Args:
             to_email: Recipient email address
@@ -102,9 +171,12 @@ class EmailSender:
             coupon_code: The coupon code to send
 
         Returns:
-            True if successful, False otherwise
+            Tuple of (success: bool, error_message: str)
         """
         try:
+            self.logger.debug(
+                f"Preparing email for {to_email} with coupon {coupon_code}"
+            )
             capitalized_name = self._capitalize_name(name)
 
             # Create message
@@ -130,7 +202,7 @@ Need assistance? Contact us at helpdesk@melinia.in
 Melinia'26 Dev Team
 """
 
-            # HTML version (simplified for now)
+            # HTML version
             html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -225,33 +297,159 @@ Melinia'26 Dev Team
             msg.attach(part2)
 
             # Send email
+            self.logger.debug(
+                f"Connecting to SMTP server {self.smtp_host}:{self.smtp_port}"
+            )
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 server.starttls()
                 server.login(self.smtp_username, self.smtp_password)
                 server.send_message(msg)
 
-            return True
-        except Exception as e:
-            print(f"SMTP error: {e}")
-            return False
+            self.logger.debug(f"Email sent successfully to {to_email}")
+            return True, ""
 
-    def process_recipient(self, recipient: Dict[str, Any]) -> Tuple[bool, str]:
-        """Process a single recipient: create coupon and send email.
+        except smtplib.SMTPAuthenticationError as e:
+            error_msg = f"SMTP Authentication Error for {to_email}: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        except smtplib.SMTPRecipientsRefused as e:
+            error_msg = f"SMTP Recipients Refused for {to_email}: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        except smtplib.SMTPSenderRefused as e:
+            error_msg = f"SMTP Sender Refused for {to_email}: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        except smtplib.SMTPException as e:
+            error_msg = f"SMTP Error sending to {to_email}: {str(e)}"
+            self.logger.error(error_msg)
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Unexpected error sending email to {to_email}: {str(e)}"
+            self.logger.error(error_msg, exc_info=True)
+            return False, error_msg
+
+    def process_recipient_sync(self, recipient: Dict[str, Any]) -> EmailResult:
+        """Process a single recipient synchronously (used by async wrapper).
 
         Args:
             recipient: Dictionary with roll_no, email, name, is_paid
 
         Returns:
-            Tuple of (success: bool, coupon_code: str)
+            EmailResult with processing details
         """
+        start_time = time.time()
         coupon_code = generate_coupon_code()
 
+        self.logger.debug(
+            f"Processing recipient: {recipient['name']} ({recipient['roll_no']})"
+        )
+
         # Create coupon via API
-        if not self.create_coupon(coupon_code):
-            return False, coupon_code
+        coupon_success, coupon_error = self.create_coupon(coupon_code)
+        if not coupon_success:
+            processing_time = (time.time() - start_time) * 1000
+            return EmailResult(
+                recipient=recipient,
+                coupon_code=coupon_code,
+                status=EmailStatus.FAILED,
+                success=False,
+                error_message=f"Coupon creation failed: {coupon_error}",
+                processing_time_ms=processing_time,
+            )
 
         # Send email
-        if not self.send_email(recipient["email"], recipient["name"], coupon_code):
-            return False, coupon_code
+        email_success, email_error = self.send_email(
+            recipient["email"], recipient["name"], coupon_code
+        )
 
-        return True, coupon_code
+        processing_time = (time.time() - start_time) * 1000
+
+        if email_success:
+            return EmailResult(
+                recipient=recipient,
+                coupon_code=coupon_code,
+                status=EmailStatus.SENT,
+                success=True,
+                processing_time_ms=processing_time,
+            )
+        else:
+            return EmailResult(
+                recipient=recipient,
+                coupon_code=coupon_code,
+                status=EmailStatus.FAILED,
+                success=False,
+                error_message=f"Email sending failed: {email_error}",
+                processing_time_ms=processing_time,
+            )
+
+    async def process_recipient_async(self, recipient: Dict[str, Any]) -> EmailResult:
+        """Process a single recipient asynchronously with rate limiting.
+
+        Args:
+            recipient: Dictionary with roll_no, email, name, is_paid
+
+        Returns:
+            EmailResult with processing details
+        """
+        # Wait for rate limiter
+        await self.rate_limiter.acquire()
+
+        # Run blocking operations in thread pool
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            self._executor, self.process_recipient_sync, recipient
+        )
+
+        return result
+
+    async def process_recipients_batch(
+        self,
+        recipients: List[Dict[str, Any]],
+        progress_callback: Optional[Callable[[int, int, EmailResult], None]] = None,
+    ) -> List[EmailResult]:
+        """Process multiple recipients in parallel with rate limiting.
+
+        Args:
+            recipients: List of recipient dictionaries
+            progress_callback: Optional callback function(current, total, result)
+
+        Returns:
+            List of EmailResult objects
+        """
+        self.logger.info(
+            f"Starting batch processing of {len(recipients)} recipients at {self.rate_limiter.max_requests_per_second} emails/second"
+        )
+
+        total = len(recipients)
+        completed = 0
+        results = []
+
+        # Create tasks for all recipients
+        tasks = [self.process_recipient_async(r) for r in recipients]
+
+        # Process as they complete
+        for coro in asyncio.as_completed(tasks):
+            result = await coro
+            completed += 1
+            results.append(result)
+
+            if progress_callback:
+                progress_callback(completed, total, result)
+
+            # Log individual results
+            if result.success:
+                self.logger.info(
+                    f"✓ [{completed}/{total}] Sent to {result.recipient['name']} ({result.recipient['roll_no']}) - Coupon: {result.coupon_code} - {result.processing_time_ms:.0f}ms"
+                )
+            else:
+                self.logger.error(
+                    f"✗ [{completed}/{total}] Failed for {result.recipient['name']} ({result.recipient['roll_no']}) - Coupon: {result.coupon_code} - Error: {result.error_message}"
+                )
+
+        return results
+
+    def close(self):
+        """Clean up resources."""
+        self._executor.shutdown(wait=True)
+        self.logger.debug("EmailSender resources cleaned up")
