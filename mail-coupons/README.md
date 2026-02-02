@@ -1,25 +1,11 @@
 # Mail Coupons - Registration Coupon Sender
 
-A Python application to send registration coupon emails to recipients from a CSV file. The application includes:
-
-- 🔐 User authentication via login API
-- 📊 SQLite database to track sent emails (prevents duplicate sends)
-- 📧 Email sending via SMTP
-- 🎫 Automatic coupon code generation
-- ✅ Comprehensive test coverage with TDD approach
-
-## Features
-
-- **Duplicate Prevention**: Uses SQLite database to track which roll numbers have already received emails
-- **Authentication**: Prompts for username/password and authenticates with the login API
-- **Batch Processing**: Processes multiple recipients with progress tracking
-- **HTML Emails**: Sends beautiful HTML emails with plain text fallback
-- **Error Handling**: Robust error handling with detailed reporting
+A Python application to send registration coupon emails to recipients from a CSV file.
 
 ## Requirements
 
 - Python 3.14+
-- UV package manager
+- [UV](https://github.com/astral-sh/uv) 
 
 ## Installation
 
@@ -49,7 +35,6 @@ ROLL002,student2@college.edu,Jane Smith,false
 - `name`: Student's full name
 - `is_paid`: Payment status (true/false)
 
-A sample CSV file is provided: `sample-data.csv`
 
 ## Usage
 
@@ -98,38 +83,6 @@ uv run python main.py sample-data.csv \
   --from-email onboard@melinia.dev \
   --smtp-host email-smtp.ap-south-1.amazonaws.com \
   --smtp-port 587
-```
-
-## How It Works
-
-1. **Authentication**: Authenticates user credentials with the login API at `localhost:3000/v1/api/login`
-2. **Read CSV**: Reads recipients from the provided CSV file
-3. **Filter Sent**: Checks the SQLite database to filter out recipients who have already received emails
-4. **Process Recipients**: For each unsent recipient:
-   - Generates a unique coupon code (format: `MLNC` + 6 alphanumeric characters)
-   - Creates the coupon via the API
-   - Sends an HTML email with the coupon code
-   - Marks the recipient as sent in the database
-5. **Report**: Displays summary of successful and failed sends
-
-## Database
-
-The application uses an SQLite database (`mail_coupons.db` by default) to track sent emails.
-
-**Schema:**
-```sql
-CREATE TABLE sent_emails (
-    roll_no TEXT PRIMARY KEY,
-    email TEXT NOT NULL,
-    name TEXT NOT NULL,
-    is_paid BOOLEAN NOT NULL,
-    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)
-```
-
-To reset and resend all emails, simply delete the database file:
-```bash
-rm mail_coupons.db
 ```
 
 ## Development
@@ -209,10 +162,3 @@ All of these can be overridden via command-line options.
 - Close any other processes accessing the database
 - Check file permissions on the database file
 
-## License
-
-This project is part of the Melinia'26 event management system.
-
-## Support
-
-For assistance, contact: helpdesk@melinia.in
