@@ -1,0 +1,6 @@
+roll_no,clg mail,name,is_paid
+ROLL001,student1@college.edu,John Doe,true
+ROLL002,student2@college.edu,Jane Smith,false
+ROLL003,student3@college.edu,Bob Wilson,true
+ROLL004,student4@college.edu,Alice Brown,false
+ROLL005,student5@college.edu,Charlie Davis,true
