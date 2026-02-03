@@ -14,7 +14,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional
 
-from mail_coupons.csv_reader import read_recipients
+from mail_coupons.csv_reader import read_recipients, read_recipients_from_directory
 from mail_coupons.database import Database
 from mail_coupons.login import authenticate_user
 from mail_coupons.email_sender import EmailSender, EmailResult
@@ -190,7 +190,7 @@ start_time: datetime = datetime.now()
 
 
 @click.command()
-@click.argument("csv_file", type=click.Path(exists=True))
+@click.argument("csv_path", type=click.Path(exists=True))
 @click.option("--username", required=True, help="Username for login authentication")
 @click.option("--password", required=True, help="Password for login authentication")
 @click.option("--smtp-username", required=True, help="SMTP username for email sending")
@@ -213,7 +213,7 @@ start_time: datetime = datetime.now()
 @click.option("-q", "--quiet", is_flag=True, help="Only show errors")
 @click.option("--no-progress", is_flag=True, help="Disable progress bar")
 def main(
-    csv_file,
+    csv_path,
     username,
     password,
     smtp_username,
@@ -230,7 +230,11 @@ def main(
     quiet,
     no_progress,
 ):
-    """Send registration coupons to recipients from CSV file.
+    """Send registration coupons to recipients from CSV file or directory.
+
+    CSV_PATH can be either:
+    - A single CSV file
+    - A directory containing multiple CSV files
 
     CSV Format: roll_no,email,name,is_paid
 
@@ -239,6 +243,7 @@ def main(
     - Verbose logging with formatted output
     - Progress tracking with detailed error reporting
     - SQLite database for tracking sent emails
+    - Directory processing with automatic deduplication by roll_no
     """
     global start_time
 
@@ -271,14 +276,27 @@ def main(
     db = Database(db_path)
     logger.info("Database initialized ✓")
 
-    # Read recipients from CSV
-    logger.info(f"Reading recipients from: {csv_file}")
-    try:
-        all_recipients = read_recipients(csv_file)
-        logger.info(f"Found {len(all_recipients)} recipients in CSV ✓")
-    except Exception as e:
-        logger.error(f"Error reading CSV: {e}")
-        sys.exit(1)
+    # Read recipients from CSV file or directory
+    is_directory = os.path.isdir(csv_path)
+
+    if is_directory:
+        logger.info(f"Reading recipients from directory: {csv_path}")
+        try:
+            all_recipients = read_recipients_from_directory(csv_path)
+            csv_files = [f for f in os.listdir(csv_path) if f.endswith(".csv")]
+            logger.info(f"Found {len(csv_files)} CSV files in directory")
+            logger.info(f"Found {len(all_recipients)} unique recipients ✓")
+        except Exception as e:
+            logger.error(f"Error reading CSV directory: {e}")
+            sys.exit(1)
+    else:
+        logger.info(f"Reading recipients from: {csv_path}")
+        try:
+            all_recipients = read_recipients(csv_path)
+            logger.info(f"Found {len(all_recipients)} recipients in CSV ✓")
+        except Exception as e:
+            logger.error(f"Error reading CSV: {e}")
+            sys.exit(1)
 
     # Filter out already sent emails
     unsent_recipients = db.get_unsent_recipients(all_recipients)

@@ -242,7 +242,7 @@ Melinia'26 Dev Team
     <div class="container" style="max-width:600px;margin:0 auto;padding:48px 24px;">
         <div class="running-border" style="border-radius:20px;padding:4px;">
             <div style="background:#131317;border-radius:17px;overflow:hidden;">
-                <img src="https://cdn.melinia.in/mln-e-bnr.jpg" alt="Melinia'26" style="display:block;width:100%;height:auto;border-radius:14px 14px 0 0;">
+                <img src="https://cdn.melinia.in/og-image.webp" alt="Melinia'26" style="display:block;width:100%;height:200px;object-fit:cover;object-position:center;border-radius:14px 14px 0 0;">
                 
                 <div class="content" style="padding:40px 36px;">
                     <div style="margin-bottom: 40px; text-align:center;">
@@ -266,9 +266,12 @@ Melinia'26 Dev Team
                             </div>
                         </div>
                         
-                        <a href="{self.register_url}" style="display:inline-block; background:#fafafa; color:#131317; text-decoration:none; font-weight:600; font-size:16px; padding:16px 40px; border-radius:10px; margin-bottom:28px;">
-                            Register Now
-                        </a>
+                        
+                        <div class="running-border" style="display:inline-block; border-radius:12px; padding:3px; margin-bottom:28px;">
+                            <a href="{self.register_url}" style="display:block; background-color:#faf8f5 !important; background:#faf8f5; color:#131317; text-decoration:none; font-weight:600; font-size:16px; padding:16px 40px; border-radius:9px;">
+                                Register Now
+                            </a>
+                        </div>
                     </div>
                 </div>
                 

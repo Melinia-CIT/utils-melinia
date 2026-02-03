@@ -14,7 +14,7 @@ class TestCSVReader:
     def valid_csv(self):
         """Create a valid CSV file for testing."""
         content = (
-            "roll_no,clg mail,name,is_paid\n"
+            "roll_no,college_mail,name,is_paid\n"
             "ROLL001,student1@college.edu,John Doe,true\n"
             "ROLL002,student2@college.edu,Jane Smith,false\n"
             "ROLL003,student3@college.edu,Bob Wilson,true\n"
@@ -50,7 +50,7 @@ class TestCSVReader:
     def test_read_recipients_handles_empty_file(self):
         """Test CSV reader handles empty file."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write("roll_no,clg mail,name,is_paid\n")
+            f.write("roll_no,college_mail,name,is_paid\n")
             temp_path = f.name
 
         try:
@@ -62,7 +62,7 @@ class TestCSVReader:
     def test_read_recipients_handles_case_variations(self):
         """Test CSV reader handles different boolean case variations."""
         content = (
-            "roll_no,clg mail,name,is_paid\n"
+            "roll_no,college_mail,name,is_paid\n"
             "ROLL001,student1@college.edu,John Doe,True\n"
             "ROLL002,student2@college.edu,Jane Smith,FALSE\n"
             "ROLL003,student3@college.edu,Bob Wilson,1\n"
@@ -86,7 +86,7 @@ class TestCSVReader:
     def test_read_recipients_handles_whitespace(self):
         """Test CSV reader handles whitespace in data."""
         content = (
-            "roll_no,clg mail,name,is_paid\n"
+            "roll_no,college_mail,name,is_paid\n"
             "  ROLL001  ,  student1@college.edu  ,  John Doe  , true \n"
         )
 
@@ -106,7 +106,7 @@ class TestCSVReader:
     def test_read_recipients_skips_empty_lines(self):
         """Test CSV reader skips empty lines."""
         content = (
-            "roll_no,clg mail,name,is_paid\n"
+            "roll_no,college_mail,name,is_paid\n"
             "ROLL001,student1@college.edu,John Doe,true\n"
             "\n"
             "\n"
